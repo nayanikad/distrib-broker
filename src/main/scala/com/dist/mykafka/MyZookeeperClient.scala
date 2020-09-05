@@ -1,14 +1,13 @@
 package com.dist.mykafka
 
-import com.dist.simplekafka.BrokerChangeListener
 import com.dist.simplekafka.common.JsonSerDes
+import com.dist.simplekafka.util.ZkUtils.Broker
 import org.I0Itec.zkclient.exception.ZkNoNodeException
 import org.I0Itec.zkclient.{IZkChildListener, ZkClient}
-import com.dist.simplekafka.util.ZkUtils.Broker
 
 import scala.jdk.CollectionConverters._
 
-class MyZookeeperClient(zkClient:ZkClient) {
+class MyZookeeperClient(zkClient: ZkClient) {
   val BrokerTopicsPath = "/brokers/topics"
   val BrokerIdsPath = "/brokers/ids"
   val ControllerPath = "/controller"
@@ -20,7 +19,7 @@ class MyZookeeperClient(zkClient:ZkClient) {
   }
 
 
-  def registerBroker(broker:Broker) = {
+  def registerBroker(broker: Broker) = {
     val brokerData = JsonSerDes.serialize(broker)
     val brokerPath = getBrokerPath(broker.id)
     createEphemeralPath(zkClient, brokerPath, brokerData)

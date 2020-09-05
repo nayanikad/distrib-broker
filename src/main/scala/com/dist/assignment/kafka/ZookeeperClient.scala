@@ -8,13 +8,20 @@ import org.I0Itec.zkclient.exception.ZkNoNodeException
 import scala.jdk.CollectionConverters._
 
 class ZookeeperClient(client: ZkClient) {
+  def subscribeChangeListener(listener: BrokerChangeListener): Option[List[String]] = {
+    val result = client.subscribeChildChanges(BrokerIdsPath, listener)
+    Option(result).map(_.asScala.toList)
+  }
+
   val BrokerIdsPath = "/brokers/ids"
 
+  def getBrokerInfo(brokerId: Int): Broker = {
+    val data: String = client.readData(brokerPathFor(brokerId))
+    JsonSerDes.deserialize(data.getBytes, classOf[Broker])
+  }
+
   def getAllBrokers(): Set[Broker] = {
-    client.getChildren(BrokerIdsPath).asScala.map(brokerId => {
-      val data: String = client.readData(brokerPathFor(brokerId.toInt))
-      JsonSerDes.deserialize(data, classOf[Broker])
-    }).toSet
+    client.getChildren(BrokerIdsPath).asScala.map(brokerId => getBrokerInfo(brokerId.toInt)).toSet
   }
 
   private def brokerPathFor(brokerId: Int) = {
