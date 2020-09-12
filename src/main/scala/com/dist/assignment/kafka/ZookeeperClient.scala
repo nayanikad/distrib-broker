@@ -24,10 +24,20 @@ class ZookeeperClient(client: ZkClient) {
     }).toMap
   }
 
+  def getPartitionAssignmentsFor(topicName: String): Seq[PartitionReplicas] = {
+    val data: String = client.readData(BrokerTopicsPath + "/" + topicName)
+    JsonSerDes.deserialize[Seq[PartitionReplicas]](data.getBytes, new TypeReference[Seq[PartitionReplicas]]() {})
+  }
+
   def setPartitionReplicasForTopic(topicName: String, partitionReplicas: Set[PartitionReplicas]): Unit = {
     val data = JsonSerDes.serialize(partitionReplicas)
     val path = BrokerTopicsPath + "/" + topicName
     createPersistentPath(client, path, data)
+  }
+
+  def subscribeTopicChangeListener(topicChangeHandler: TopicChangeHandler): Option[List[String]] = {
+    val result = client.subscribeChildChanges(BrokerTopicsPath, topicChangeHandler)
+    Option(result).map(_.asScala.toList)
   }
 
   def subscribeChangeListener(listener: BrokerChangeListener): Option[List[String]] = {
