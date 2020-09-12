@@ -1,19 +1,39 @@
 package com.dist.assignment.kafka
 
+import com.dist.simplekafka.PartitionReplicas
 import com.dist.simplekafka.common.JsonSerDes
 import com.dist.simplekafka.util.ZkUtils.Broker
+import com.fasterxml.jackson.core.`type`.TypeReference
 import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.ZkNoNodeException
 
 import scala.jdk.CollectionConverters._
 
 class ZookeeperClient(client: ZkClient) {
+
+  val BrokerIdsPath = "/brokers/ids"
+  val BrokerTopicsPath = "/brokers/topics"
+
+  def getAllTopics(): Map[String, List[PartitionReplicas]] = {
+    val topics = client.getChildren(BrokerTopicsPath).asScala
+
+    topics.map(topicName => {
+      val data: String = client.readData(BrokerTopicsPath + "/" + topicName)
+      val partitionReplicas: List[PartitionReplicas] = JsonSerDes.deserialize[List[PartitionReplicas]](data.getBytes, new TypeReference[List[PartitionReplicas]]() {})
+      (topicName, partitionReplicas)
+    }).toMap
+  }
+
+  def setPartitionReplicasForTopic(topicName: String, partitionReplicas: Set[PartitionReplicas]): Unit = {
+    val data = JsonSerDes.serialize(partitionReplicas)
+    val path = BrokerTopicsPath + "/" + topicName
+    createPersistentPath(client, path, data)
+  }
+
   def subscribeChangeListener(listener: BrokerChangeListener): Option[List[String]] = {
     val result = client.subscribeChildChanges(BrokerIdsPath, listener)
     Option(result).map(_.asScala.toList)
   }
-
-  val BrokerIdsPath = "/brokers/ids"
 
   def getBrokerInfo(brokerId: Int): Broker = {
     val data: String = client.readData(brokerPathFor(brokerId))
