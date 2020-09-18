@@ -1,11 +1,12 @@
 package com.dist.assignment.kafka
 
-import com.dist.simplekafka.PartitionReplicas
 import com.dist.simplekafka.common.JsonSerDes
+import com.dist.simplekafka.util.ZkUtils
 import com.dist.simplekafka.util.ZkUtils.Broker
+import com.dist.simplekafka.{ControllerExistsException, LeaderAndReplicas, PartitionReplicas}
 import com.fasterxml.jackson.core.`type`.TypeReference
 import org.I0Itec.zkclient.ZkClient
-import org.I0Itec.zkclient.exception.ZkNoNodeException
+import org.I0Itec.zkclient.exception.{ZkNoNodeException, ZkNodeExistsException}
 
 import scala.jdk.CollectionConverters._
 
@@ -13,6 +14,20 @@ class ZookeeperClient(client: ZkClient) {
 
   val BrokerIdsPath = "/brokers/ids"
   val BrokerTopicsPath = "/brokers/topics"
+  val ControllerPath = "/controller"
+  val ReplicaLeaderElectionPath = "/topics/replica/leader"
+
+  def createControllerPath(leaderId: String) = {
+    try {
+      createEphemeralPath(client, ControllerPath, leaderId)
+    } catch {
+      case _: ZkNodeExistsException => {
+        val existingControllerId: String = client.readData(ControllerPath)
+        println("Controller exists exception", existingControllerId)
+        throw ControllerExistsException(existingControllerId)
+      }
+    }
+  }
 
   def getAllTopics(): Map[String, List[PartitionReplicas]] = {
     val topics = client.getChildren(BrokerTopicsPath).asScala
@@ -41,6 +56,11 @@ class ZookeeperClient(client: ZkClient) {
   }
 
   def subscribeChangeListener(listener: BrokerChangeListener): Option[List[String]] = {
+    val result = client.subscribeChildChanges(BrokerIdsPath, listener)
+    Option(result).map(_.asScala.toList)
+  }
+
+  def subscribeBrokerChangeListener(listener: BrokerChangeListenerWithController): Option[List[String]] = {
     val result = client.subscribeChildChanges(BrokerIdsPath, listener)
     Option(result).map(_.asScala.toList)
   }
@@ -88,6 +108,19 @@ class ZookeeperClient(client: ZkClient) {
       case e: ZkNoNodeException => {
         createParentPath(client, path)
         client.createPersistent(path, data)
+      }
+    }
+  }
+
+  def setPartitionLeaderForTopic(topicName: String, leaderAndReplicas: List[LeaderAndReplicas]) = {
+    val data = JsonSerDes.serialize(leaderAndReplicas)
+    val path = ReplicaLeaderElectionPath + "/" + topicName
+
+    try {
+      ZkUtils.updatePersistentPath(client, path, data)
+    } catch {
+      case e: Throwable => {
+        println("Exception while writing data to partition leader data" + e)
       }
     }
   }

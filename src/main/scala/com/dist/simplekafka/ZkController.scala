@@ -85,9 +85,9 @@ class ZkController(val zookeeperClient: ZookeeperClient, val brokerId: Int, sock
       this.currentLeader = brokerId;
       onBecomingLeader()
     } catch {
-      case e: ControllerExistsException => {
-        this.currentLeader = e.controllerId.toInt
-      }
+        case e: ControllerExistsException => {
+          this.currentLeader = e.controllerId.toInt
+        }
     }
   }
 
